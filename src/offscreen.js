@@ -99,20 +99,11 @@ async function runPipeline(streamId) {
 
 // 发送结果给当前激活的标签页
 // src/offscreen.js
-
 async function sendMessageToTab(text) {
-    // 关键：向 Background 发送，让 Background 中转，或者精准查询
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    // 调试：看看这里能不能搜到 Tab
-    console.log("当前活跃 Tab:", tabs);
-
-    if (tabs.length > 0 && tabs[0].id) {
-        chrome.tabs.sendMessage(tabs[0].id, { 
-            type: 'UPDATE_SUBTITLE', 
-            text: text 
-        }).catch(err => {
-            console.warn("发送消息失败（可能页面未刷新或脚本未注入）:", err);
-        });
-    }
+    // 不要在这里用 chrome.tabs.query，offscreen 没权限
+    // 直接把识别结果发给 background.js
+    chrome.runtime.sendMessage({
+        type: 'INFERENCE_DONE',
+        text: text
+    });
 }
