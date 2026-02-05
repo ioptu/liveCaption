@@ -83,7 +83,11 @@ async function runPipeline(streamId) {
                 const result = await transcriber(fullBuffer, {
                     language: 'chinese', // 强制中文，或去掉让它自动检测
                     //language: null, 
-                    task: 'transcribe'
+                    task: 'transcribe',
+                    chunk_length_s: 30,
+                    stride_length_s: 5,
+                    return_timestamps: false,
+                    force_full_sequences: false
                 });
 
                 if (result.text && result.text.trim()) {
