@@ -81,8 +81,8 @@ async function runPipeline(streamId) {
             // 执行推理
             try {
                 const result = await transcriber(fullBuffer, {
-                    //language: 'chinese', // 强制中文，或去掉让它自动检测
-                    language: null, 
+                    language: 'chinese', // 强制中文，或去掉让它自动检测
+                    //language: null, 
                     task: 'transcribe'
                 });
 
