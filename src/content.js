@@ -17,7 +17,7 @@ function renderSubtitle(text) {
             bottom: 80px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 2147483647;
+            z-index: 2147483647 !important;
             background: rgba(0, 0, 0, 0.75);
             color: white;
             padding: 12px 24px;
