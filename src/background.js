@@ -37,7 +37,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.type === 'INFERENCE_DONE') {
         // 后台有权限查询 tabs
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs[0] && tabs[0].id) {
+            if (tabs[0] && tabs[0].id && tabs[0].url.startsWith('http')) {
                 chrome.tabs.sendMessage(tabs[0].id, {
                     type: 'UPDATE_SUBTITLE',
                     text: msg.text
