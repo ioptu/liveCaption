@@ -1,0 +1,6 @@
+node_modules
+dist
+.DS_Store
+# 忽略本地下载的模型文件（如果你不想把大文件传到 git 仓库）
+public/models/
+!public/models/.gitkeep
