@@ -31,3 +31,18 @@ chrome.action.onClicked.addListener(async (tab) => {
     streamId: streamId
   });
 });
+
+// 添加监听器：接收来自 Offscreen 的文字，并转发给当前网页
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'INFERENCE_DONE') {
+        // 后台有权限查询 tabs
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs[0] && tabs[0].id) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                    type: 'UPDATE_SUBTITLE',
+                    text: msg.text
+                });
+            }
+        });
+    }
+});
