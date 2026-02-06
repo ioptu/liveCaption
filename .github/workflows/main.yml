@@ -22,21 +22,19 @@ jobs:
       - name: Install Deps
         run: npm install
 
-      # 自动下载模型文件到 public/models/whisper-tiny
-      - name: Download Models
+      - name: Download Whisper Base Model
         run: |
-          mkdir -p public/models/whisper-tiny/onnx
-          base_url="https://huggingface.co/Xenova/whisper-tiny/resolve/main"
-          
-          curl -L "$base_url/generation_config.json" -o public/models/whisper-tiny/generation_config.json
-          curl -L "$base_url/tokenizer_config.json" -o public/models/whisper-tiny/tokenizer_config.json          
-          curl -L "$base_url/config.json" -o public/models/whisper-tiny/config.json
-          curl -L "$base_url/tokenizer.json" -o public/models/whisper-tiny/tokenizer.json
-          curl -L "$base_url/preprocessor_config.json" -o public/models/whisper-tiny/preprocessor_config.json
-          
-          # 下载 ONNX 模型 (注意：这里下载的是标准版，如需量化版请改文件名)
-          curl -L "$base_url/onnx/encoder_model_quantized.onnx" -o public/models/whisper-tiny/onnx/encoder_model_quantized.onnx
-          curl -L "$base_url/onnx/decoder_model_merged_quantized.onnx" -o public/models/whisper-tiny/onnx/decoder_model_merged_quantized.onnx
+          mkdir -p public/models/whisper-base/onnx
+          base_url="https://huggingface.co/Xenova/whisper-base/resolve/main"
+          # 下载配置文件
+          curl -L "$base_url/config.json" -o public/models/whisper-base/config.json
+          curl -L "$base_url/tokenizer.json" -o public/models/whisper-base/tokenizer.json
+          curl -L "$base_url/tokenizer_config.json" -o public/models/whisper-base/tokenizer_config.json
+          curl -L "$base_url/preprocessor_config.json" -o public/models/whisper-base/preprocessor_config.json
+          # 下载 ONNX 模型文件 (注意文件名)
+          curl -L "$base_url/onnx/encoder_model.onnx" -o public/models/whisper-base/onnx/encoder_model.onnx
+          curl -L "$base_url/onnx/decoder_model_merged.onnx" -o public/models/whisper-base/onnx/decoder_model_merged.onnx
+          curl -L "$base_url/generation_config.json" -o public/models/whisper-base/generation_config.json
 
       - name: Build
         run: npm run build
