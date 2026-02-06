@@ -16,21 +16,44 @@ async function ensureOffscreenDocument() {
   });
 }
 
-// 点击图标开始录音
+// src/background.js
+
+let isRunning = false;
+
 chrome.action.onClicked.addListener(async (tab) => {
-  await ensureOffscreenDocument();
-
-  // 获取 Media Stream ID (这必须在 background 中做)
-  const streamId = await chrome.tabCapture.getMediaStreamId({
-    targetTabId: tab.id
-  });
-
-  // 把 ID 发给 Offscreen 去处理
-  chrome.runtime.sendMessage({
-    type: 'START_TRANSCRIPTION',
-    streamId: streamId
-  });
+    if (isRunning) {
+        // --- 关闭逻辑 ---
+        await stopTranscription();
+        isRunning = false;
+        // 可选：通过图标上的文字提示状态
+        chrome.action.setBadgeText({ text: "" }); 
+        console.log("已停止识别并关闭 Offscreen");
+    } else {
+        // --- 启动逻辑 ---
+        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
+        await ensureOffscreenDocument();
+        
+        chrome.runtime.sendMessage({
+            type: 'START_TRANSCRIPTION',
+            streamId: streamId
+        });
+        
+        isRunning = true;
+        chrome.action.setBadgeText({ text: "ON" });
+        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" });
+    }
 });
+
+// 销毁 Offscreen 的函数
+async function stopTranscription() {
+    const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+
+    if (existingContexts.length > 0) {
+        await chrome.offscreen.closeDocument();
+    }
+}
 
 // 添加监听器：接收来自 Offscreen 的文字，并转发给当前网页
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
