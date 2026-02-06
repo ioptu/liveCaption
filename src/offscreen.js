@@ -28,10 +28,15 @@ async function runPipeline(streamId) {
     // A. 加载模型 (WebGPU 模式)
     if (!transcriber) {
         console.log("正在加载 WebGPU 模型...");
-        transcriber = await pipeline('automatic-speech-recognition', 'whisper-tiny', {
+        transcriber = await pipeline('automatic-speech-recognition', 'whisper-base', {
             device: 'webgpu', // 核心：使用 GPU 加速
             local_files_only: true, // 只读本地
-            model_path: 'models/whisper-tiny', // 对应 public/models/whisper-tiny
+            model_path: 'models/whisper-base', // 对应 public/models/whisper-base
+            // base 模型建议显式指定文件名
+            model_file_names: {
+                encoder: 'encoder_model.onnx',
+                decoder: 'decoder_model_merged.onnx'
+            }    
         });
         console.log("模型加载完成！");
     }
@@ -87,7 +92,8 @@ async function runPipeline(streamId) {
                     chunk_length_s: 30,
                     stride_length_s: 5,
                     return_timestamps: false,
-                    force_full_sequences: false
+                    num_beams: 1
+                    //force_full_sequences: false
                 });
 
                 if (result.text && result.text.trim()) {
@@ -99,6 +105,23 @@ async function runPipeline(streamId) {
             }
         }
     };
+}
+
+function processAndSend(text) {
+    const cleanText = text.trim();
+    
+    // 过滤掉已知的 Whisper 幻听高频词
+    const hallucinations = ["谢谢观看", "请订阅", "字幕由", "Thank you for watching"];
+    if (hallucinations.some(h => cleanText.includes(h))) return;
+
+    // 过滤掉过短且无意义的单字重复
+    if (cleanText.length <= 1) return;
+
+    // 发送给 Background
+    chrome.runtime.sendMessage({
+        type: 'INFERENCE_DONE',
+        text: cleanText
+    });
 }
 
 // 发送结果给当前激活的标签页
