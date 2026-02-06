@@ -27,6 +27,7 @@ chrome.action.onClicked.addListener(async (tab) => {
         isRunning = false;
         // 可选：通过图标上的文字提示状态
         chrome.action.setBadgeText({ text: "" }); 
+        chrome.tabs.sendMessage(tab.id, { type: 'STOP_SUBTITLE' });
         console.log("已停止识别并关闭 Offscreen");
     } else {
         // --- 启动逻辑 ---
