@@ -2,7 +2,12 @@ chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'UPDATE_SUBTITLE') {
         renderSubtitle(msg.text);
     }
+    if (msg.type === 'STOP_SUBTITLE') {
+        const el = document.getElementById('webgpu-ai-sub-container');
+        if (el) el.remove(); // 移除字幕框
+    }
 });
+
 
 function renderSubtitle(text) {
     const ID = 'webgpu-ai-sub-container';
