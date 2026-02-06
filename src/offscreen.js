@@ -33,6 +33,7 @@ async function runPipeline(streamId) {
             local_files_only: true, // 只读本地
             model_path: 'models/whisper-base', // 对应 public/models/whisper-base
             // base 模型建议显式指定文件名
+            quantized: false,
             model_file_names: {
                 encoder: 'encoder_model.onnx',
                 decoder: 'decoder_model_merged.onnx'
