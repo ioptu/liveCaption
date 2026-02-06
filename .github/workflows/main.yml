@@ -32,8 +32,8 @@ jobs:
           curl -L "$base_url/tokenizer_config.json" -o public/models/whisper-base/tokenizer_config.json
           curl -L "$base_url/preprocessor_config.json" -o public/models/whisper-base/preprocessor_config.json
           # 下载 ONNX 模型文件 (注意文件名)
-          curl -L "$base_url/onnx/encoder_model_quantized.onnx" -o public/models/whisper-base/onnx/encoder_model_quantized.onnx
-          curl -L "$base_url/onnx/decoder_model_merged_quantized.onnx" -o public/models/whisper-base/onnx/decoder_model_merged_quantized.onnx
+          curl -L "$base_url/onnx/encoder_model.onnx" -o public/models/whisper-base/onnx/encoder_model.onnx
+          curl -L "$base_url/onnx/decoder_model_merged.onnx" -o public/models/whisper-base/onnx/decoder_model_merged.onnx
           curl -L "$base_url/generation_config.json" -o public/models/whisper-base/generation_config.json
 
       - name: Build
