@@ -15,10 +15,14 @@ env.useBrowserCache = false;
 
 // 4. 核心：禁止从 CDN 加载 WebAssembly 内核
 // 告诉引擎不要去 cdn.jsdelivr.net 找那些 .mjs 文件
-env.backends.onnx.wasm.wasmPaths = 'lib/'; 
+const libPath = chrome.runtime.getURL('src/lib/');
+env.backends.onnx.wasm.wasmPaths = libPath; 
 // 如果你使用的是 3.x 版本的 transformers.js，使用以下设置
 env.backends.onnx.wasm.proxy = false; 
-
+// 如果你使用的是 Transformers.js v3，需要显式指定 jsep 路径
+if (env.backends.onnx.webgpu) {
+    env.backends.onnx.webgpu.wasmPaths = libPath;
+}
 // 5. 针对 WebGPU 的路径特殊处理
 // 强制让它在本地寻找 jsep (WebGPU) 内核文件
 env.backends.onnx.wasm.numThreads = 1;
@@ -34,13 +38,16 @@ async function loadModel() {
       transcriber = await pipeline('automatic-speech-recognition', 'whisper-base', {
         device: 'webgpu',
         // 显式开启量化支持
-        //quantized: true,
+        quantized: true,
+        dtype: 'fp16',
         // 显式指定分词器和配置都在本地
         revision: 'main', 
       });
       console.log("Worker: 模型加载成功");
     } catch (err) {
       console.error("模型加载失败，请检查 models 目录结构是否完整:", err);
+      // 尝试回退到 cpu (可选，用于调试路径是否正确)
+      // transcriber = await pipeline('...', { device: 'cpu' });
     }
   }
 }
