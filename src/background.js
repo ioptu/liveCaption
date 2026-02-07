@@ -1,72 +1,79 @@
-let offscreenDoc = null;
+let isCapturing = false;
 
-// 创建离线文档的辅助函数
-async function ensureOffscreenDocument() {
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: ['OFFSCREEN_DOCUMENT'],
-  });
-
-  if (existingContexts.length > 0) return;
-
-  // 指向 Vite 构建后的路径
-  await chrome.offscreen.createDocument({
-    url: 'src/offscreen.html', 
-    reasons: ['USER_MEDIA'],
-    justification: 'Real-time WebGPU audio transcription',
-  });
-}
-
-// src/background.js
-
-let isRunning = false;
-
+// 监听图标点击
 chrome.action.onClicked.addListener(async (tab) => {
-    if (isRunning) {
-        // --- 关闭逻辑 ---
-        await stopTranscription();
-        isRunning = false;
-        // 可选：通过图标上的文字提示状态
-        chrome.action.setBadgeText({ text: "" }); 
-        chrome.tabs.sendMessage(tab.id, { type: 'STOP_SUBTITLE' });
-        console.log("已停止识别并关闭 Offscreen");
-    } else {
-        // --- 启动逻辑 ---
-        const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id });
-        await ensureOffscreenDocument();
-        
-        chrome.runtime.sendMessage({
-            type: 'START_TRANSCRIPTION',
-            streamId: streamId
-        });
-        
-        isRunning = true;
-        chrome.action.setBadgeText({ text: "ON" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" });
-    }
+  if (isCapturing) {
+    await stopCapture(tab.id);
+  } else {
+    await startCapture(tab.id);
+  }
 });
 
-// 销毁 Offscreen 的函数
-async function stopTranscription() {
-    const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: ['OFFSCREEN_DOCUMENT']
+async function startCapture(tabId) {
+  try {
+    // 1. 获取当前标签页的音频流 ID
+    const streamId = await chrome.tabCapture.getMediaStreamId({
+      targetTabId: tabId
     });
 
-    if (existingContexts.length > 0) {
-        await chrome.offscreen.closeDocument();
-    }
+    // 2. 确保 Offscreen 文档存在
+    await setupOffscreenDocument('src/offscreen.html');
+
+    // 3. 发送开始指令给 Offscreen
+    chrome.runtime.sendMessage({
+      type: 'START_RECORDING',
+      data: { streamId, tabId }
+    });
+
+    isCapturing = true;
+    chrome.action.setBadgeText({ text: "ON" });
+    chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" });
+
+  } catch (err) {
+    console.error("启动失败:", err);
+    resetState();
+  }
 }
 
-// 添加监听器：接收来自 Offscreen 的文字，并转发给当前网页
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'INFERENCE_DONE') {
-        // 后台有权限查询 tabs
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs[0] && tabs[0].id && tabs[0].url.startsWith('http')) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                    type: 'UPDATE_SUBTITLE',
-                    text: msg.text
-                });
-            }
-        });
+async function stopCapture(tabId) {
+  // 1. 通知 Offscreen 停止并释放流
+  try {
+    await chrome.runtime.sendMessage({ type: 'STOP_RECORDING' });
+  } catch (e) {
+    // 忽略发送失败（可能 offscreen 已经死掉了）
+  }
+
+  // 2. 销毁 Offscreen 文档 (彻底释放 WebGPU 和 AudioContext)
+  setTimeout(async () => {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+    if (existingContexts.length > 0) {
+      await chrome.offscreen.closeDocument();
     }
-});
+    
+    // 3. 通知 Content Script 移除字幕 UI
+    chrome.tabs.sendMessage(tabId, { type: 'REMOVE_UI' });
+    
+    resetState();
+  }, 500);
+}
+
+function resetState() {
+  isCapturing = false;
+  chrome.action.setBadgeText({ text: "" });
+}
+
+// 辅助函数：创建 Offscreen
+async function setupOffscreenDocument(path) {
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT']
+  });
+  if (existingContexts.length > 0) return;
+
+  await chrome.offscreen.createDocument({
+    url: path,
+    reasons: ['USER_MEDIA'],
+    justification: 'Recording tab audio for captioning'
+  });
+}
