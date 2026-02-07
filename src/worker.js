@@ -23,6 +23,8 @@ async function loadModel() {
       // 它会自动拼接到 env.localModelPath 后面
       transcriber = await pipeline('automatic-speech-recognition', 'whisper-base', {
         device: 'webgpu',
+        // 显式开启量化支持
+        quantized: true,
         // 显式指定分词器和配置都在本地
         revision: 'main', 
       });
