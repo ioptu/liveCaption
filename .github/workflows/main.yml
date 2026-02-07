@@ -38,8 +38,10 @@ jobs:
           curl -L "$MODEL_URL/generation_config.json" -o models/whisper-base/generation_config.json
           
           # 下载 ONNX 量化版模型文件 (必须放在 onnx 目录下)
-          curl -L "$MODEL_URL/onnx/encoder_model_quantized.onnx" -o models/whisper-base/onnx/encoder_model_quantized.onnx
-          curl -L "$MODEL_URL/onnx/decoder_model_merged_quantized.onnx" -o models/whisper-base/onnx/decoder_model_merged_quantized.onnx
+          #curl -L "$MODEL_URL/onnx/encoder_model_quantized.onnx" -o models/whisper-base/onnx/encoder_model_quantized.onnx
+          #curl -L "$MODEL_URL/onnx/decoder_model_merged_quantized.onnx" -o models/whisper-base/onnx/decoder_model_merged_quantized.onnx
+          curl -L "$MODEL_URL/onnx/encoder_model.onnx" -o models/whisper-base/onnx/encoder_model.onnx
+          curl -L "$MODEL_URL/onnx/decoder_model_merged.onnx" -o models/whisper-base/onnx/decoder_model_merged.onnx          
 
       # 3. 下载 Transformers.js 库文件 (确保 worker.js 能离线加载)
       - name: Download Transformers.js Library
