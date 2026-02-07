@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "WebGPU Whisper Live Caption",
+  "version": "2.0.0",
+  "description": "基于 Whisper 滑动窗口机制的实时网页字幕",
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/worker.js",
+        "src/lib/transformers.min.js",
+        "src/utils/audio-utils.js",
+        "models/whisper-base/*.json",
+        "models/whisper-base/onnx/*.onnx"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content.js"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
