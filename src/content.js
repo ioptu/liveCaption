@@ -1,61 +1,68 @@
+let lastFullText = "";
 let subtitleContainer = null;
-let lastText = "";
 
+// 创建 UI 界面
 function createSubtitleUI() {
-  if (document.getElementById('ai-subtitle-overlay')) return;
-
-  const div = document.createElement('div');
-  div.id = 'ai-subtitle-overlay';
-  div.style.cssText = `
+  if (document.getElementById('whisper-subtitle-root')) return;
+  
+  subtitleContainer = document.createElement('div');
+  subtitleContainer.id = 'whisper-subtitle-root';
+  subtitleContainer.style = `
     position: fixed;
-    bottom: 50px;
+    bottom: 10%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 20px;
+    width: 80%;
+    max-height: 150px;
+    background: rgba(0, 0, 0, 0.75);
+    color: #ffffff;
+    font-size: 24px;
     font-family: sans-serif;
-    z-index: 999999;
-    pointer-events: none;
     text-align: center;
-    min-width: 300px;
-    max-width: 80%;
-    transition: opacity 0.3s;
-    text-shadow: 1px 1px 2px black;
+    padding: 15px;
+    border-radius: 12px;
+    z-index: 1000000;
+    pointer-events: none;
+    line-height: 1.5;
+    overflow: hidden;
+    text-shadow: 2px 2px 4px rgba(0,0,0,1);
   `;
-  document.body.appendChild(div);
-  subtitleContainer = div;
+  document.body.appendChild(subtitleContainer);
 }
 
-function removeSubtitleUI() {
-  const el = document.getElementById('ai-subtitle-overlay');
-  if (el) el.remove();
-  lastText = "";
+// 文本差量算法：提取新内容
+function getDiff(oldStr, newStr) {
+  oldStr = oldStr.trim();
+  newStr = newStr.trim();
+  
+  if (newStr.startsWith(oldStr)) {
+    return newStr.substring(oldStr.length);
+  }
+  // 如果新旧文本不匹配（滑动窗口漂移），返回最后一句
+  return newStr.slice(-20); 
 }
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'UPDATE_SUBTITLE') {
-    if (!subtitleContainer) createSubtitleUI();
+    createSubtitleUI();
     
     const newText = msg.text.trim();
+    if (!newText || newText === lastFullText) return;
+
+    // 获取增量文本
+    const diff = getDiff(lastFullText, newText);
     
-    // 简单的去重与更新逻辑
-    // 因为是滑动窗口，每次都会返回长长的一段话，我们通常只需要显示最后一句
-    // 或者直接显示 AI 返回的完整修正结果
-    if (newText && newText !== lastText) {
-      subtitleContainer.innerText = newText;
-      lastText = newText;
-      
-      // 3秒后如果没有新内容，稍微变淡
-      clearTimeout(subtitleContainer.timer);
-      subtitleContainer.style.opacity = '1';
-      subtitleContainer.timer = setTimeout(() => {
-        subtitleContainer.style.opacity = '0.5';
-      }, 3000);
+    if (diff) {
+      const span = document.createElement('span');
+      span.innerText = diff + " ";
+      subtitleContainer.appendChild(span);
+
+      // 自动滚动到底部并限制长度
+      if (subtitleContainer.childNodes.length > 50) {
+        subtitleContainer.removeChild(subtitleContainer.firstChild);
+      }
     }
-  } else if (msg.type === 'REMOVE_UI') {
-    removeSubtitleUI();
+    
+    lastFullText = newText;
   }
 });
