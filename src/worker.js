@@ -1,24 +1,35 @@
-import { pipeline, env } from './lib/transformers.min.js'; 
-// 注意：如果你没有本地 transformers.min.js，你需要从 CDN 引入，
-// 但 MV3 限制 CDN，建议下载 transformer.js 到本地 lib 目录。
-// 假设你已经把 transformers.js 放到了 src/lib/ 或者直接引用 node_modules
+import { pipeline, env } from './lib/transformers.min.js';
 
-// 配置 transformers.js
+// --- 核心配置修改 ---
+// 1. 明确告诉插件只从本地加载
+env.allowRemoteModels = false; 
 env.allowLocalModels = true;
+
+// 2. 这里的路径非常关键！它是相对于 worker.js 的位置
+// 我们的结构是 src/worker.js 和 models/whisper-base/
+// 所以需要先跳出 src (../) 进入 models
+env.localModelPath = '../models/'; 
+
+// 3. 既然是纯原生加载，关闭浏览器缓存检查，完全依赖扩展本地文件
 env.useBrowserCache = false;
 
 let transcriber = null;
 
-// 初始化模型
 async function loadModel() {
   if (!transcriber) {
-    console.log("Worker: 正在加载模型...");
-    // 确保你的 public/models/whisper-base 文件夹里有 config.json, tokenizer.json 等
-    transcriber = await pipeline('automatic-speech-recognition', '../models/whisper-base', {
-      device: 'webgpu', // 强制 WebGPU
-      quantized: true   // 使用量化版
-    });
-    console.log("Worker: 模型加载完毕");
+    console.log("Worker: 正在加载本地 WebGPU 模型...");
+    try {
+      // 注意：这里的第二个参数只需要写文件夹名 'whisper-base'
+      // 它会自动拼接到 env.localModelPath 后面
+      transcriber = await pipeline('automatic-speech-recognition', 'whisper-base', {
+        device: 'webgpu',
+        // 显式指定分词器和配置都在本地
+        revision: 'main', 
+      });
+      console.log("Worker: 模型加载成功");
+    } catch (err) {
+      console.error("模型加载失败，请检查 models 目录结构是否完整:", err);
+    }
   }
 }
 
@@ -29,14 +40,17 @@ self.onmessage = async (e) => {
     if (!transcriber) await loadModel();
 
     try {
-      // Whisper 调用
-      // chunk_length_s: 30 确保利用完整的滑动窗口上下文
+      // 实时流式优化的参数
       const output = await transcriber(audio, {
         language: 'chinese',
         task: 'transcribe',
+        // 滑动窗口的核心参数
         chunk_length_s: 30,
         stride_length_s: 5,
-        return_timestamps: false // 实时字幕不需要时间戳，只要字
+        // 关键：强制返回文本
+        return_timestamps: false,
+        // 提示：你可以加入初始提示词，减少幻听
+        prompt: "以下是普通话实时字幕：", 
       });
 
       self.postMessage({
@@ -45,7 +59,8 @@ self.onmessage = async (e) => {
       });
 
     } catch (err) {
-      console.error("推理错误:", err);
+      // 如果是因为音频太短报错，可以忽略
+      console.error("推理执行中发生错误:", err);
     }
   }
 };
