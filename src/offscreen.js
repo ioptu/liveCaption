@@ -1,137 +1,140 @@
-import { pipeline, env } from '@xenova/transformers';
+import { downsampleBuffer, calculateRMS } from './utils/audio-utils.js';
 
-// --- 1. 强制配置环境以适应 Chrome 扩展 ---
-// 允许加载本地模型
-env.allowLocalModels = true; 
-env.useBrowserCache = false;
-// 禁用多线程 Worker (解决 Manifest V3 Blob 报错的关键)
-env.backends.onnx.wasm.numThreads = 1; 
-env.backends.onnx.wasm.proxy = false;
-// 指定 WASM 文件的绝对路径 (由 Vite 插件复制过去)
-env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('wasm/');
+let audioContext = null;
+let mediaStream = null;
+let scriptProcessor = null;
+let worker = null;
+let targetTabId = null;
 
-let transcriber = null;
-let isProcessing = false;
+// 配置参数
+const WHISPER_SAMPLE_RATE = 16000;
+const MAX_BUFFER_DURATION = 30; // 窗口大小：30秒
+const STRIDE_DURATION = 2;      // 步长：每2秒推理一次
+const VAD_THRESHOLD = 0.005;    // 静音阈值 (需要根据实际情况微调)
 
-// --- 2. 监听后台消息 ---
+// 全局音频缓冲 (Float32)
+let audioBufferQueue = []; 
+let totalSamples = 0;
+let lastInferenceTime = 0;
+
+// 初始化 Web Worker
+function initWorker() {
+  if (!worker) {
+    worker = new Worker('worker.js', { type: 'module' });
+    
+    worker.onmessage = (e) => {
+      const { status, text, partial } = e.data;
+      if (status === 'complete' || status === 'partial') {
+        // 收到结果，转发给 content.js 显示
+        if (targetTabId && text) {
+          chrome.tabs.sendMessage(targetTabId, {
+            type: 'UPDATE_SUBTITLE',
+            text: text,
+            isPartial: status === 'partial'
+          });
+        }
+      }
+    };
+  }
+}
+
 chrome.runtime.onMessage.addListener(async (msg) => {
-    if (msg.type === 'START_TRANSCRIPTION') {
-        if (isProcessing) return;
-        isProcessing = true;
-        console.log("收到录音任务，StreamID:", msg.streamId);
-        await runPipeline(msg.streamId);
-    }
+  if (msg.type === 'START_RECORDING') {
+    targetTabId = msg.data.tabId;
+    await startAudioCapture(msg.data.streamId);
+  } else if (msg.type === 'STOP_RECORDING') {
+    stopAudioCapture();
+  }
 });
 
-// --- 3. 核心流水线 ---
-async function runPipeline(streamId) {
-    // A. 加载模型 (WebGPU 模式)
-    if (!transcriber) {
-        console.log("正在加载 WebGPU 模型...");
-        transcriber = await pipeline('automatic-speech-recognition', 'whisper-base', {
-            device: 'webgpu', // 核心：使用 GPU 加速
-            local_files_only: true, // 只读本地
-            model_path: 'models/whisper-base', // 对应 public/models/whisper-base
-            // base 模型建议显式指定文件名
-            quantized: false,
-            model_file_names: {
-                encoder: 'encoder_model.onnx',
-                decoder: 'decoder_model_merged.onnx'
-            }    
-        });
-        console.log("模型加载完成！");
+async function startAudioCapture(streamId) {
+  initWorker();
+  
+  // 1. 获取流
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      mandatory: {
+        chromeMediaSource: 'tab',
+        chromeMediaSourceId: streamId
+      }
+    },
+    video: false
+  });
+
+  // 2. 创建 AudioContext
+  audioContext = new AudioContext();
+  const source = audioContext.createMediaStreamSource(mediaStream);
+  
+  // 3. 使用 ScriptProcessor (虽然废弃但简单，4096 样本缓冲)
+  scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+  
+  source.connect(scriptProcessor);
+  scriptProcessor.connect(audioContext.destination);
+
+  // 4. 音频处理回调
+  scriptProcessor.onaudioprocess = (e) => {
+    const inputData = e.inputBuffer.getChannelData(0);
+    
+    // VAD 预检：如果这 4096 个采样全是静音，虽然我们还是要记录(为了背景)，但可以标记
+    // 降采样到 16k
+    const downsampled = downsampleBuffer(inputData, audioContext.sampleRate, WHISPER_SAMPLE_RATE);
+    
+    // 添加到队列
+    audioBufferQueue.push(downsampled);
+    totalSamples += downsampled.length;
+
+    // 维护 30秒 的滑动窗口
+    // 16000 * 30 = 480,000 采样点
+    const maxSamples = WHISPER_SAMPLE_RATE * MAX_BUFFER_DURATION;
+    while (totalSamples > maxSamples) {
+      const removed = audioBufferQueue.shift();
+      totalSamples -= removed.length;
     }
 
-    // B. 获取音频流
-    const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-            mandatory: {
-                chromeMediaSource: 'tab',
-                chromeMediaSourceId: streamId
-            }
-        },
-        video: false
-    });
-
-    // C. 音频处理 (重采样到 16kHz)
-    const audioContext = new AudioContext({ sampleRate: 16000 });
-    const source = audioContext.createMediaStreamSource(stream);
-    // 必须连接到 destination，否则用户会听不到声音
-    source.connect(audioContext.destination);
-
-    // 使用 ScriptProcessor 进行切片 (虽然被废弃，但在扩展环境下最稳)
-    const bufferSize = 4096;
-    const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-    source.connect(processor);
-    processor.connect(audioContext.destination);
-
-    let audioChunks = [];
-    const INFERENCE_THRESHOLD = 3 * 16000; // 每 3 秒数据推理一次
-
-    processor.onaudioprocess = async (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        audioChunks.push(new Float32Array(inputData));
-
-        const totalSamples = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
-
-        if (totalSamples >= INFERENCE_THRESHOLD) {
-            // 合并 Buffer
-            const fullBuffer = new Float32Array(totalSamples);
-            let offset = 0;
-            for (const chunk of audioChunks) {
-                fullBuffer.set(chunk, offset);
-                offset += chunk.length;
-            }
-            audioChunks = []; // 清空
-
-            // 执行推理
-            try {
-                const result = await transcriber(fullBuffer, {
-                    language: 'chinese', // 强制中文，或去掉让它自动检测
-                    //language: null, 
-                    task: 'transcribe',
-                    chunk_length_s: 30,
-                    stride_length_s: 5,
-                    return_timestamps: false,
-                    num_beams: 1
-                    //force_full_sequences: false
-                });
-
-                if (result.text && result.text.trim()) {
-                    console.log("识别结果:", result.text);
-                    sendMessageToTab(result.text);
-                }
-            } catch (err) {
-                console.error("推理出错:", err);
-            }
-        }
-    };
+    // 触发推理逻辑 (每隔 STRIDE_DURATION 秒)
+    const now = Date.now();
+    if (now - lastInferenceTime > STRIDE_DURATION * 1000) {
+      runInference();
+      lastInferenceTime = now;
+    }
+  };
 }
 
-function processAndSend(text) {
-    const cleanText = text.trim();
-    
-    // 过滤掉已知的 Whisper 幻听高频词
-    const hallucinations = ["谢谢观看", "请订阅", "字幕由", "Thank you for watching"];
-    if (hallucinations.some(h => cleanText.includes(h))) return;
+function runInference() {
+  if (audioBufferQueue.length === 0) return;
 
-    // 过滤掉过短且无意义的单字重复
-    if (cleanText.length <= 1) return;
+  // 1. 合并缓冲区
+  const merged = new Float32Array(totalSamples);
+  let offset = 0;
+  for (const chunk of audioBufferQueue) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
 
-    // 发送给 Background
-    chrome.runtime.sendMessage({
-        type: 'INFERENCE_DONE',
-        text: cleanText
-    });
+  // 2. VAD 检查：检查最后 2 秒是否有声音
+  const recentSamples = merged.slice(-WHISPER_SAMPLE_RATE * STRIDE_DURATION);
+  const energy = calculateRMS(recentSamples);
+  
+  if (energy < VAD_THRESHOLD) {
+    console.log("静音，跳过推理");
+    return; 
+  }
+
+  // 3. 发送给 Worker
+  worker.postMessage({
+    type: 'run',
+    audio: merged
+  });
 }
 
-// 发送结果给当前激活的标签页
-// src/offscreen.js
-async function sendMessageToTab(text) {
-    // 不要在这里用 chrome.tabs.query，offscreen 没权限
-    // 直接把识别结果发给 background.js
-    chrome.runtime.sendMessage({
-        type: 'INFERENCE_DONE',
-        text: text
-    });
+function stopAudioCapture() {
+  if (scriptProcessor) scriptProcessor.disconnect();
+  if (mediaStream) {
+    mediaStream.getTracks().forEach(t => t.stop());
+  }
+  if (audioContext) audioContext.close();
+  
+  audioBufferQueue = [];
+  totalSamples = 0;
+  console.log("录音已停止");
 }
