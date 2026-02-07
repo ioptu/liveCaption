@@ -26,8 +26,10 @@
     {
       "resources": [
         "src/worker.js",
+        "src/lib/transformers.min.js",
         "src/utils/audio-utils.js",
-        "models/*" 
+        "models/whisper-base/*.json",
+        "models/whisper-base/onnx/*.onnx"
       ],
       "matches": ["<all_urls>"]
     }
@@ -35,8 +37,10 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/content.js"],
-      "css": []
+      "js": ["src/content.js"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }
