@@ -56,8 +56,16 @@ jobs:
       # 5. 发布到 GitHub Release
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        # 修改这里：如果是手动触发 OR 是推送标签，都执行
+        if: |
+          github.event_name == 'workflow_dispatch' || 
+          startsWith(github.ref, 'refs/tags/')
         with:
+          # 手动触发时没有标签名，我们给一个默认名称或使用运行 ID
+          tag_name: ${{ github.ref_name }}-${{ github.run_number }}
+          name: Release ${{ github.ref_name }} (Build ${{ github.run_number }})
           files: whisper-extension.zip
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
