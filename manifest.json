@@ -27,6 +27,8 @@
       "resources": [
         "src/worker.js",
         "src/lib/transformers.min.js",
+        "src/lib/*.mjs",
+        "src/lib/*.wasm",
         "src/utils/audio-utils.js",
         "models/whisper-base/*.json",
         "models/whisper-base/onnx/*.onnx"
