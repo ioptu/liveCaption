@@ -1,5 +1,20 @@
 let isCapturing = false;
 
+// 监听来自 Offscreen 的中转请求
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'RELAY_SUBTITLE') {
+    if (msg.targetTabId && msg.text) {
+      // 只有 Background 有权限调用 chrome.tabs
+      chrome.tabs.sendMessage(msg.targetTabId, {
+        type: 'UPDATE_SUBTITLE',
+        text: msg.text
+      }).catch(err => {
+        console.warn("转发字幕失败，标签页可能已关闭:", err);
+      });
+    }
+  }
+});
+
 // 监听图标点击
 chrome.action.onClicked.addListener(async (tab) => {
   if (isCapturing) {
