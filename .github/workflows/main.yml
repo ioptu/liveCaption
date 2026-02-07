@@ -46,6 +46,8 @@ jobs:
         run: |
           mkdir -p src/lib
           curl -L "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js" -o src/lib/transformers.min.js
+          curl -L "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/ort-wasm-simd-threaded.jsep.wasm" -o src/lib/ort-wasm-simd-threaded.jsep.wasm
+          curl -L "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/ort-wasm-simd-threaded.jsep.mjs" -o src/lib/ort-wasm-simd-threaded.jsep.mjs
 
       # 4. 打包扩展文件 (排除不必要的文件)
       - name: Zip Extension
