@@ -1,0 +1,55 @@
+name: Build transformers-bundle.js
+
+on:
+
+  workflow_dispatch:   # 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install @huggingface/transformers@3.8.1 esbuild --save-dev
+
+      - name: Create entry.js
+        run: |
+          echo "export * from '@huggingface/transformers';" > entry.js
+
+      - name: Build with esbuild
+        run: |
+          npx esbuild entry.js \
+            --bundle \
+            --outfile=transformers-bundle.js \
+            --format=esm \
+            --target=es2022 \
+            --platform=browser \
+            --minify
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: transformers-bundle
+          path: transformers-bundle.js
+          retention-days: 7
+
+      # 
+      - name: Create Release (on tag push)
+        if: false # startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: transformers-bundle.js
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: "Auto-built transformers-bundle.js"
