@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'  # 避免 Node 20 棄用警告，使用 22 或 24
+          node-version: '24' 
 
       - name: Create temp-build directory and install dependencies
         run: |
@@ -47,7 +47,6 @@ jobs:
           path: temp-build/transformers-bundle.js
           retention-days: 30
 
-      # 可選：如果 push tag，自動發佈 Release
       - name: Release on tag
         if: false #startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
