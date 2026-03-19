@@ -1,13 +1,9 @@
 name: Build transformers-bundle.js
-
 on:
-
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -15,19 +11,23 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24' 
+          node-version: '24'
 
       - name: Create temp-build directory and install dependencies
         run: |
           mkdir temp-build
           cd temp-build
           npm init -y
-          npm install @huggingface/transformers@3.8.1 esbuild --save-dev
-
+          npm install @huggingface/transformers@3.8.1 onnxruntime-web esbuild --save-dev
+ 
       - name: Create entry.js
         run: |
           cd temp-build
-          echo "export * from '@huggingface/transformers';" > entry.js
+          cat > entry.js << 'EOF'
+          export * from '@huggingface/transformers';
+          import * as ort from 'onnxruntime-web';
+          export { ort };
+          EOF
 
       - name: Build with esbuild
         run: |
@@ -48,7 +48,7 @@ jobs:
           retention-days: 30
 
       - name: Release on tag
-        if: false #startsWith(github.ref, 'refs/tags/')
+        if: false
         uses: softprops/action-gh-release@v2
         with:
           files: temp-build/transformers-bundle.js
