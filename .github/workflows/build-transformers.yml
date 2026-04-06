@@ -25,6 +25,7 @@ jobs:
           cd temp-build
           cat > entry.js << 'EOF'
           export * from '@huggingface/transformers';
+          export { ort } from '@huggingface/transformers';
           EOF
 
       - name: Build with esbuild
