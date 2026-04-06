@@ -14,32 +14,32 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Create temp-build and install
+      - name: Create temp-build and install dependencies
         run: |
           mkdir temp-build
           cd temp-build
           npm init -y
           npm install @huggingface/transformers@4.0.1 onnxruntime-web@latest esbuild --save-dev
 
-      - name: Create improved entry.js
+      - name: Create entry.js (v4 推荐写法)
         run: |
           cd temp-build
           cat > entry.js << 'EOF'
-          // 导出 transformers 主库
+          // 主库导出（包含 pipeline、env 等）
           export * from '@huggingface/transformers';
 
-          // 关键：分开导出 wasm 和 webgpu 版本的 ort（v4 推荐做法）
+          // 分开导出 ort（wasm 用于 VAD，webgpu 用于 Whisper）
           import * as ortWasm from 'onnxruntime-web';
           import * as ortWebGPU from 'onnxruntime-web/webgpu';
 
           export { ortWasm as ort };
           export { ortWebGPU as ortWebGPU };
 
-          // 方便在 offscreen 中根据 device 切换
+          // 工具函数：根据需要切换 ort
           export const getOrt = (useWebGPU = false) => useWebGPU ? ortWebGPU : ortWasm;
           EOF
 
-      - name: Build with esbuild (优化配置)
+      - name: Build with esbuild（已修复 outfile/outdir 冲突）
         run: |
           cd temp-build
           npx esbuild entry.js \
@@ -49,10 +49,7 @@ jobs:
             --target=es2022 \
             --platform=browser \
             --minify \
-            --splitting \
-            --outdir=. \
-            --external:@huggingface/transformers  # 可选，如果想减小体积
-
+            --external:onnxruntime-web/webgpu
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
