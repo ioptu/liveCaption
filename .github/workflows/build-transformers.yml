@@ -1,65 +1,54 @@
-name: Build Transformers Bundle
+name: Build transformers-bundle.js
 on:
-  workflow_dispatch: # 手动触发
-
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
-      - name: Install Dependencies
+      - name: Create temp-build directory and install dependencies
         run: |
-          mkdir build-src && cd build-src
+          mkdir temp-build
+          cd temp-build
           npm init -y
-          npm install @huggingface/transformers@4.0.1 --save-dev
-
-      - name: Create Entry File
+          npm install @huggingface/transformers@4.0.1 onnxruntime-web esbuild --save-dev
+ 
+      - name: Create entry.js
         run: |
-          cd build-src
+          cd temp-build
           cat > entry.js << 'EOF'
-          export { 
-            env, 
-            pipeline, 
-            AutoTokenizer, 
-            AudioProcessor, 
-            ort 
-          } from '@huggingface/transformers';
+          export * from '@huggingface/transformers';
+          import * as ort from 'onnxruntime-web';
+          export { ort };
           EOF
 
-      - name: Bundle with esbuild
+      - name: Build with esbuild
         run: |
-          cd build-src
+          cd temp-build
           npx esbuild entry.js \
             --bundle \
-            --outfile=../dist/transformers-bundle.js \
+            --outfile=transformers-bundle.js \
             --format=esm \
             --target=es2022 \
             --platform=browser \
-            --minify-whitespace \
-            --minify-syntax \
-            --keep-names \
-            --define:process.env.NODE_ENV='"production"'
+            --minify
 
-      - name: Extract WASM Assets
-        run: |
-          # 动态定位 transformers 依赖的 ort 路径
-          ORT_DIST=$(find build-src/node_modules -path "*/onnxruntime-web/dist/*" -type d | head -n 1)
-          echo "Found ORT Dist at: $ORT_DIST"
-          
-          # 拷贝所有必要的 WASM 和 MJS 引导文件到 dist 目录
-          cp $ORT_DIST/*.wasm ./dist/
-          cp $ORT_DIST/*.mjs ./dist/
-
-
-      - name: Upload Artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: chrome-extension-assets
-          path: ./dist/*
+          name: transformers-bundle
+          path: temp-build/transformers-bundle.js
+          retention-days: 30
+
+      - name: Release on tag
+        if: false
+        uses: softprops/action-gh-release@v2
+        with:
+          files: temp-build/transformers-bundle.js
