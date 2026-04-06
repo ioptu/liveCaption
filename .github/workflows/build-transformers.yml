@@ -1,6 +1,7 @@
 name: Build transformers-bundle.js
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,23 +14,32 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Create temp-build directory and install dependencies
+      - name: Create temp-build and install
         run: |
           mkdir temp-build
           cd temp-build
           npm init -y
-          npm install @huggingface/transformers@4.0.1 onnxruntime-web esbuild --save-dev
- 
-      - name: Create entry.js
+          npm install @huggingface/transformers@4.0.1 onnxruntime-web@latest esbuild --save-dev
+
+      - name: Create improved entry.js
         run: |
           cd temp-build
           cat > entry.js << 'EOF'
+          // 导出 transformers 主库
           export * from '@huggingface/transformers';
-          import * as ort from 'onnxruntime-web';
-          export { ort };
+
+          // 关键：分开导出 wasm 和 webgpu 版本的 ort（v4 推荐做法）
+          import * as ortWasm from 'onnxruntime-web';
+          import * as ortWebGPU from 'onnxruntime-web/webgpu';
+
+          export { ortWasm as ort };
+          export { ortWebGPU as ortWebGPU };
+
+          // 方便在 offscreen 中根据 device 切换
+          export const getOrt = (useWebGPU = false) => useWebGPU ? ortWebGPU : ortWasm;
           EOF
 
-      - name: Build with esbuild
+      - name: Build with esbuild (优化配置)
         run: |
           cd temp-build
           npx esbuild entry.js \
@@ -38,7 +48,11 @@ jobs:
             --format=esm \
             --target=es2022 \
             --platform=browser \
-            --minify
+            --minify \
+            --splitting \
+            --outdir=. \
+            --external:@huggingface/transformers  # 可选，如果想减小体积
+
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -46,9 +60,3 @@ jobs:
           name: transformers-bundle
           path: temp-build/transformers-bundle.js
           retention-days: 30
-
-      - name: Release on tag
-        if: false
-        uses: softprops/action-gh-release@v2
-        with:
-          files: temp-build/transformers-bundle.js
