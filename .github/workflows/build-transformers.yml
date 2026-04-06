@@ -25,8 +25,6 @@ jobs:
           cd temp-build
           cat > entry.js << 'EOF'
           export * from '@huggingface/transformers';
-          import * as ort from 'onnxruntime-web';
-          export { ort };
           EOF
 
       - name: Build with esbuild
