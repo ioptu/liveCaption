@@ -1,6 +1,7 @@
 name: Build transformers-bundle.js
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,22 +12,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
 
-      - name: Create temp-build directory and install dependencies
+      - name: Install dependencies
         run: |
-          mkdir temp-build
-          cd temp-build
+          mkdir temp-build && cd temp-build
           npm init -y
-          npm install @huggingface/transformers@4.0.1 onnxruntime-web esbuild --save-dev
- 
+          npm install @huggingface/transformers@4.0.1 onnxruntime-web@1.19.0 --save-dev
+
       - name: Create entry.js
         run: |
           cd temp-build
           cat > entry.js << 'EOF'
-          import * as transformers from '@huggingface/transformers';
-          import * as ort from 'onnxruntime-web';
           export * from '@huggingface/transformers';
+          import * as ort from 'onnxruntime-web';
           export { ort };
           EOF
 
@@ -39,17 +38,13 @@ jobs:
             --format=esm \
             --target=es2022 \
             --platform=browser \
-            --minify
+            --minify-whitespace \
+            --minify-syntax \
+            --keep-names \
+            --define:process.env.NODE_ENV='"production"'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: transformers-bundle
           path: temp-build/transformers-bundle.js
-          retention-days: 30
-
-      - name: Release on tag
-        if: false
-        uses: softprops/action-gh-release@v2
-        with:
-          files: temp-build/transformers-bundle.js
