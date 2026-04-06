@@ -18,7 +18,7 @@ jobs:
         run: |
           mkdir temp-build && cd temp-build
           npm init -y
-          npm install @huggingface/transformers@4.0.1 onnxruntime-web@1.19.0 --save-dev
+          npm install @huggingface/transformers@4.0.1 onnxruntime-web --save-dev
 
       - name: Create entry.js
         run: |
