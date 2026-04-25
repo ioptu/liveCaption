@@ -1,7 +1,7 @@
  
 > 使用webgpu和离线AI模型，对硬件有一定要求。
 >
-> 其中sszm_whisper-vad和sszm_whisper使用whisper做语音识别，sszm_voxtral.realtime使用voxtralchrome做语音识别，均使用chrome内置AI做翻译。
+> 其中sszm_whisper-vad和sszm_whisper使用whisper做语音识别，sszm_voxtral.realtime使用voxtral做语音识别，均使用chrome内置AI做翻译。
 >
 > whisper相对比较轻量，效果一般，而voxtral达到预期效果，硬件要求也较高(本地测试当前版本的扩展的显存占用最低时为5G)。
 >
