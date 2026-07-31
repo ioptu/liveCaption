@@ -3,4 +3,4 @@
 >浏览器内置翻译引擎的翻译效果一般，较为生硬不如常见AI自然。不过，可以通过将offscreen.js文件中SHOW_TRANSLATION_ENABLED的值修改为false，来关闭sszm 的翻译功能，然后利用其它扩展的网页翻译来实现较高质量的翻译。
 
 
->sszm-sh 利用webgpu + onnx来驱动腾讯混元 hy-mt1.5-1.8b 模型做字幕翻译。语音识别使用的是chrome浏览器内置离线AI-SODA。
+>sszm-sh 利用webgpu + onnx来驱动腾讯混元 hy-mt1.5-1.8b 离线模型做字幕翻译。语音识别使用的是chrome浏览器内置离线AI-SODA。
